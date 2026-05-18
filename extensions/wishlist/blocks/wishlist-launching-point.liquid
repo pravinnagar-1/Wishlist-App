@@ -1,0 +1,107 @@
+{% comment %} extensions/blocks/wishlist-launching-point.liquid {% endcomment %}
+
+<script>
+  (function launchingPointInit() {
+    if (!window.WishlistConfigApp?.enabled) return;
+
+    function applySettings(data) {
+      const point    = data.launching_point || 'both';
+      const position = data.position        || 'bottom_right';
+      const bgColor  = data.bg_color        || '#000000';
+      const iconColor = data.icon_color     || '#ffffff';
+      const radius   = data.icon_radius     || 'circle';
+
+      const radiusMap = { circle: '50%', rounded: '6px', square: '0px' };
+
+      // Apply floating button styles
+      const btnEl = document.querySelector('.wishlist-floating-icon a');
+      if (btnEl) {
+        btnEl.style.backgroundColor = bgColor;
+        btnEl.style.color           = iconColor;
+        btnEl.style.borderRadius    = radiusMap[radius] || '50%';
+      }
+
+      // Header icon visibility
+      const headerIcon = document.querySelector('.header__icon--wishlist');
+      if (headerIcon) {
+        headerIcon.style.display = (point === 'header' || point === 'both') ? 'flex' : 'none';
+      }
+
+      // Floating button visibility + position
+      const floatingEl = document.querySelector('.wishlist-floating-icon');
+      if (!floatingEl) return;
+
+      const showFloating = (point === 'floating_btn' || point === 'both') && window.WishlistConfigApp?.enabled;
+      floatingEl.style.display = showFloating ? 'block' : 'none';
+
+      if (!showFloating) return;
+
+      const btn = floatingEl.querySelector('.openWishlist');
+      if (!btn) return;
+
+      btn.style.cssText = 'position:fixed;z-index:100000001;';
+      btn.className = btn.className
+        .replace(/\b(left|right|bottom_left|bottom_right)\b/g, '')
+        .trim();
+      btn.classList.add(position);
+
+      const posStyles = {
+        bottom_right: 'right:10px;bottom:10px;',
+        bottom_left:  'left:10px;bottom:10px;',
+        right:        'right:10px;top:50%;transform:translateY(-50%);height:fit-content;',
+        left:         'left:10px;top:50%;transform:translateY(-50%);height:fit-content;',
+      };
+      btn.style.cssText += posStyles[position] || posStyles.bottom_right;
+    }
+
+    // Use shared settings promise — no separate fetch
+    const sp = window.wishlistSettingsPromise
+      || fetch('/apps/wishlist/api/wishlist-settings').then(function(r) { return r.json(); }).catch(function() { return {}; });
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { sp.then(applySettings); });
+    } else {
+      sp.then(applySettings);
+    }
+  })();
+</script>
+
+<div class="wishlist-floating-icon" style="display:none;" aria-hidden="true">
+  <div class="openWishlist">
+    <span class="MuiBadge-root">
+      <a
+        aria-label="Open Wishlist"
+        href="#"
+        style="background-color:rgb(18,18,18);color:#ffffff;width:40px;height:40px;display:flex;justify-content:center;align-items:center;border-radius:50%;"
+      >
+        <svg
+          aria-hidden="true"
+          width="20"
+          height="20"
+          focusable="false"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 512 512"
+        >
+          <path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/>
+        </svg>
+      </a>
+      <span class="MuiBadge-badge wishlist-count" aria-label="Wishlist count">0</span>
+    </span>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Launch Point",
+  "target": "body",
+  "settings": [
+    { "type": "header", "content": "CSS Integration" },
+    {
+      "type": "text",
+      "id": "custom_class",
+      "label": "Additional CSS Class",
+      "info": "Use this to better target this specific container"
+    }
+  ]
+}
+{% endschema %}

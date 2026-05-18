@@ -1,0 +1,30 @@
+{% comment %} extensions/blocks/wishlist-page.liquid {% endcomment %}
+
+{%- comment -%}
+  Only the custom_class comes from Liquid (block settings).
+  All other config (type, title) is fetched once by wishlist.js
+  via the shared window.wishlistSettingsPromise.
+{%- endcomment -%}
+
+<script>
+  window.wishlistCustomClass = {{ block.settings.custom_class | default: '' | json }};
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Page",
+  "target": "body",
+  "settings": [
+    {
+      "type": "header",
+      "content": "CSS Integration"
+    },
+    {
+      "type": "text",
+      "id": "custom_class",
+      "label": "Additional CSS Class",
+      "info": "Use this to better target this specific container"
+    }
+  ]
+}
+{% endschema %}

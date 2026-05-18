@@ -1,0 +1,81 @@
+{% comment %} extensions/blocks/wishlist-header.liquid {% endcomment %}
+<a
+  href="#wishlist"
+  id="wishlist-icon"
+  class="{{ block.settings.custom_class_container | handle }} openWishlist header__icon header__icon--wishlist wishlist-link"
+  style="position:relative;text-decoration:none;color:inherit;display:none;"
+  aria-label="Open Wishlist"
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 32 32"
+    class="{{ block.settings.custom_class | handle }} wlh-svg-icon-heart"
+    style="width:{{ block.settings.icon_size }}px;height:{{ block.settings.icon_size }}px;fill:{{ block.settings.icon_color | default: '#000' }}"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path d="M29.728 10.656q0-1.472-0.384-2.56t-0.992-1.76-1.472-1.056-1.664-0.576-1.76-0.128-1.984 0.448-1.984 1.152-1.536 1.28-1.088 1.088q-0.32 0.416-0.864 0.416t-0.864-0.416q-0.448-0.48-1.088-1.088t-1.536-1.28-1.984-1.152-1.984-0.448-1.76 0.128-1.664 0.576-1.472 1.056-0.992 1.76-0.384 2.56q0 2.976 3.36 6.336l10.368 9.984 10.368-9.984q3.36-3.36 3.36-6.336zM32 10.656q0 3.936-4.096 8.032l-11.104 10.72q-0.32 0.32-0.8 0.32t-0.8-0.32l-11.136-10.752q-0.16-0.16-0.48-0.48t-0.992-1.184-1.216-1.728-0.96-2.144-0.416-2.464q0-3.936 2.272-6.144t6.272-2.24q1.088 0 2.24 0.384t2.144 1.056 1.728 1.216 1.344 1.216q0.64-0.64 1.344-1.216t1.728-1.216 2.144-1.056 2.24-0.384q4 0 6.272 2.24t2.272 6.144z"/>
+  </svg>
+  <span
+    class="wishlist-count {{ block.settings.alignment }}"
+    style="visibility:hidden"
+    aria-label="0 items in wishlist"
+    aria-live="polite"
+  >0</span>
+</a>
+
+{% comment %}
+  wishlist.js and wishlist.css are already loaded by app-configuration.liquid.
+  These tags remain as a fallback in case app-configuration is not installed.
+{% endcomment %}
+<script src="{{ 'wishlist.js' | asset_url }}" defer></script>
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+
+<style>
+  .wishlist-link { position: relative; }
+
+  .header__icon--wishlist .wishlist-count {
+    background:   {{ block.settings.bubble_bg_color }};
+    color:        {{ block.settings.bubble_color }};
+    border-radius: 50%;
+    padding:      0;
+    font-size:    {{ block.settings.bubble_font_size }}px;
+    position:     absolute;
+    top:          5px;
+    width:        {{ block.settings.bubble_width }}px;
+    height:       {{ block.settings.bubble_width }}px;
+    display:      flex;
+    align-items:  center;
+    justify-content: center;
+  }
+  .header__icon--wishlist .wishlist-count.right { right: 3px; }
+  .header__icon--wishlist .wishlist-count.left  { left:  3px; }
+</style>
+
+{% schema %}
+{
+  "name": "Wishlist Header Icon",
+  "target": "section",
+  "settings": [
+    { "type": "header", "content": "Customize the icon" },
+    { "type": "checkbox", "id": "custom_icon_color", "label": "Use Custom icon color", "default": false },
+    { "type": "color",   "id": "icon_color", "label": "Custom icon color", "info": "Please use only if needed", "visible_if": "{{ block.settings.custom_icon_color }}" },
+    { "type": "checkbox", "id": "custom_icon_size",  "label": "Use Custom icon size",  "default": false },
+    { "type": "range",   "id": "icon_size", "label": "Custom icon size", "min": 10, "max": 30, "step": 1, "unit": "px", "default": 20, "visible_if": "{{ block.settings.custom_icon_size }}" },
+    { "type": "header",  "content": "Integrate using CSS Classes", "info": "Use the settings below to better integrate the icon into your existing theme" },
+    { "type": "text",    "id": "custom_class",           "label": "Additional Icon CSS Class",           "info": "Extra CSS class for the icon" },
+    { "type": "text",    "id": "custom_class_container", "label": "Additional Icon Container CSS Class", "info": "Extra CSS classes added to icon container, use to match your theme" },
+    { "type": "header",  "content": "Bubble Icon" },
+    { "type": "color",   "id": "bubble_bg_color",   "label": "Bubble background color", "default": "#000" },
+    { "type": "color",   "id": "bubble_color",      "label": "Bubble text color",       "default": "#fff" },
+    { "type": "range",   "id": "bubble_font_size",  "label": "Bubble Font Size",  "min": 8,  "max": 20, "step": 1, "unit": "px", "default": 10 },
+    { "type": "range",   "id": "bubble_width",      "label": "Bubble Width",      "min": 8,  "max": 20, "step": 1, "unit": "px", "default": 15 },
+    { "type": "select",  "id": "alignment", "label": "Bubble alignment", "default": "right",
+      "options": [
+        { "value": "left",  "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
+    }
+  ]
+}
+{% endschema %}

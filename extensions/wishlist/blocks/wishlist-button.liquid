@@ -1,0 +1,165 @@
+{% comment %} extensions/blocks/wishlist-button.liquid [product page] {% endcomment %}
+
+<script>
+  (function wishlistButtonInit() {
+    if (!window.WishlistConfigApp?.enabled) {
+      document.querySelectorAll('.wishlist-btn').forEach(function(el) { el.remove(); });
+      return;
+    }
+
+    function applySettings(data) {
+      const displayMode  = data.product_btn_style  || 'style1';
+      const beforeText   = data.before_btn_label   || 'Add to Wishlist';
+      const afterText    = data.after_btn_label     || 'Added to Wishlist';
+      const beforeBg     = data.before_bg_color     || '#000000';
+      const beforeColor  = data.before_icon_color   || '#ffffff';
+      const afterBg      = data.after_bg_color      || '#228B22';
+      const afterColor   = data.after_icon_color    || '#000000';
+
+      const modeMap = {
+        style1: 'button_with_app',
+        style2: 'text_only',
+        style3: 'icon_only',
+      };
+
+      document.querySelectorAll('.wishlist-btn').forEach(function(btn) {
+        btn.setAttribute('data-display-mode', modeMap[displayMode] || 'button_with_app');
+        btn.style.setProperty('--before-text',  '"' + beforeText  + '"');
+        btn.style.setProperty('--after-text',   '"' + afterText   + '"');
+        btn.style.setProperty('--before-bg',    beforeBg);
+        btn.style.setProperty('--before-color', beforeColor);
+        btn.style.setProperty('--after-bg',     afterBg);
+        btn.style.setProperty('--after-color',  afterColor);
+      });
+    }
+
+    // Use shared settings promise — no separate fetch
+    const sp = window.wishlistSettingsPromise
+      || fetch('/apps/wishlist/api/wishlist-settings').then(function(r) { return r.json(); }).catch(function() { return {}; });
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { sp.then(applySettings); });
+    } else {
+      sp.then(applySettings);
+    }
+  })();
+</script>
+
+<button
+  class="wishlist-btn {{ block.settings.alignment }}"
+  style="visibility:hidden"
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-customer-id="{{ customer.id }}"
+  data-product-handle="{{ product.handle }}"
+  data-display-mode="button_with_app"
+  data-button-appearance="{{ block.settings.button_appearance }}"
+  aria-label="Add to wishlist"
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="wishlist-btn-icon {{ block.settings.custom_class | handle }}"
+    width="{{ block.settings.icon_size }}px"
+    height="{{ block.settings.icon_size }}px"
+    viewBox="0 0 16 15"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path d="M0.499512 4.23438C0.489854 3.3889 0.771027 2.56562 1.29541 1.90234C1.81986 1.23905 2.55639 0.775459 3.38135 0.589844C4.20621 0.404323 5.06972 0.508118 5.82764 0.882812C6.58546 1.25749 7.19197 1.88049 7.54541 2.64844L7.99365 3.62305L8.45166 2.65332C8.7513 2.01974 9.22531 1.48462 9.81787 1.11035C10.4105 0.736079 11.0975 0.538353 11.7983 0.540039H11.7993C12.7806 0.540039 13.7226 0.930139 14.4165 1.62402C15.1101 2.31787 15.4995 3.25914 15.4995 4.24023C15.4994 5.19889 15.0589 6.28852 14.3296 7.41895C13.6061 8.54032 12.6327 9.65005 11.646 10.6367C10.6614 11.6213 9.67441 12.4717 8.93311 13.0771C8.56279 13.3796 8.25459 13.6208 8.03955 13.7852C8.02603 13.7955 8.01228 13.8047 7.99951 13.8145C7.98674 13.8047 7.97299 13.7955 7.95947 13.7852C7.74443 13.6208 7.43624 13.3796 7.06592 13.0771C6.32458 12.4717 5.33761 11.6213 4.35303 10.6367C3.36642 9.65011 2.39388 8.54025 1.67041 7.41895C0.941103 6.28852 0.499618 5.19889 0.499512 4.24023V4.23438Z" stroke="black"/>
+  </svg>
+</button>
+
+<style>
+  .wishlist-btn {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    border: 0;
+    padding: 0 {{ block.settings.horizontal_padding }}px;
+    cursor: pointer;
+    font: inherit;
+    font-size: {{ block.settings.font_size }}px;
+    text-decoration: none;
+    transition: box-shadow var(--duration-short, 0.1s) ease;
+    -webkit-appearance: none;
+    appearance: none;
+    gap: 10px;
+    {% if block.settings.full_width %}width: 100%;{% endif %}
+    border-radius: {{ block.settings.border_radius }}px;
+    margin: {{ block.settings.top_margin }}px 0 {{ block.settings.bottom_margin }}px 0;
+    height: {{ block.settings.button_height }}px;
+    background-color: var(--before-bg, #000000);
+    color: var(--before-color, #ffffff);
+  }
+  .wishlist-btn.product-in-wishlist {
+    background-color: var(--after-bg, #228B22);
+    color: var(--after-color, #000000);
+  }
+  .wishlist-btn .wishlist-btn-icon path {
+    stroke: var(--before-color, #ffffff);
+  }
+  .wishlist-btn.product-in-wishlist .wishlist-btn-icon {
+    fill: var(--after-color, #000000);
+  }
+  .wishlist-btn.product-in-wishlist .wishlist-btn-icon path {
+    stroke: var(--after-color, #000000);
+  }
+  .wishlist-btn[data-display-mode="text_only"]  .wishlist-btn-icon { display: none; }
+  .wishlist-btn[data-display-mode="icon_only"]::after { display: none; }
+  .wishlist-btn[data-button-appearance="outline"] {
+    background: transparent;
+    border: 1px solid currentColor;
+  }
+  .wishlist-btn[data-button-appearance="plain"] {
+    background: transparent;
+  }
+  .wishlist-btn::after {
+    content: var(--before-text, "Add to Wishlist");
+  }
+  .wishlist-btn.product-in-wishlist::after {
+    content: var(--after-text, "Added to Wishlist");
+  }
+  .wishlist-btn.left  { justify-content: flex-start; }
+  .wishlist-btn.right { justify-content: flex-end; }
+</style>
+
+{% comment %}
+  wishlist.js and wishlist.css are already loaded by app-configuration.liquid.
+  These tags remain as a fallback in case app-configuration is not installed.
+{% endcomment %}
+<script src="{{ 'wishlist.js' | asset_url }}" defer></script>
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+
+{% schema %}
+{
+  "name": "Add To Wishlist Button",
+  "target": "section",
+  "templates": ["product"],
+  "settings": [
+    { "type": "text_alignment", "id": "alignment", "label": "Content alignment", "default": "center" },
+    {
+      "type": "radio",
+      "id": "button_appearance",
+      "label": "Button Appearance",
+      "options": [
+        { "value": "solid",   "label": "Solid" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "plain",   "label": "Plain" }
+      ],
+      "default": "solid"
+    },
+    { "type": "paragraph", "content": "All of the following settings are optional and measured in pixels" },
+    { "type": "number", "id": "top_margin",          "label": "Top margin",         "default": 0 },
+    { "type": "number", "id": "bottom_margin",        "label": "Bottom margin",      "default": 0 },
+    { "type": "number", "id": "button_height",        "label": "Button height",      "default": 40 },
+    { "type": "range",  "id": "font_size",            "label": "Font size",          "min": 8, "max": 30, "step": 1, "default": 15, "unit": "px" },
+    { "type": "checkbox","id": "full_width",          "label": "Use full width",     "default": true },
+    { "type": "range",  "id": "horizontal_padding",   "label": "Horizontal padding", "min": 10, "max": 40, "step": 1, "unit": "px", "default": 20 },
+    { "type": "range",  "id": "border_radius",        "label": "Border Radius",      "min": 0, "max": 30, "step": 1, "unit": "px", "default": 4 },
+    { "type": "header", "content": "Icon" },
+    { "type": "range",  "id": "icon_size",            "label": "Size",               "min": 8, "max": 30, "step": 1, "unit": "px", "default": 15 },
+    { "type": "header", "content": "CSS Integration" },
+    { "type": "text",   "id": "custom_class",         "label": "Additional Icon CSS Class", "info": "Use to better target this specific button container" }
+  ]
+}
+{% endschema %}

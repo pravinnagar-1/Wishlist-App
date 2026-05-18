@@ -1,0 +1,19 @@
+{% comment %} app-configuration.liquid {% endcomment %}
+<script>
+  window.WishlistConfigApp   = { enabled: true };
+  window.wishlistCustomClass = '';
+  window.wishlistSettingsPromise = fetch('/apps/wishlist/api/wishlist-settings')
+    .then(function(r) { return r.json(); })
+    .catch(function() { return {}; });
+</script>
+
+{{ 'wishlist.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'wishlist.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "App Configuration",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}
