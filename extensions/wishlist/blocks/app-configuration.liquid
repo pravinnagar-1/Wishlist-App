@@ -2,6 +2,7 @@
 <script>
   window.WishlistConfigApp   = { enabled: true };
   window.wishlistCustomClass = '';
+  window.wishlistCustomerId  = {{ customer.id | json }};
   window.wishlistSettingsPromise = fetch('/apps/wishlist/api/wishlist-settings')
     .then(function(r) { return r.json(); })
     .catch(function() { return {}; });

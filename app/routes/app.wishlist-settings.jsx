@@ -6,9 +6,13 @@ import {
   RadioButton, Select, TextField, Button, Banner, InlineStack, Checkbox
 } from "@shopify/polaris";
 import { SettingsIcon, AppsIcon, XIcon, NotificationIcon } from "@shopify/polaris-icons";
-
-const METAFIELD_NAMESPACE = "wishlist_app";
-const METAFIELD_KEY       = "launching_settings";
+import {
+  METAFIELD_NAMESPACE,
+  METAFIELD_KEY,
+  DEFAULT_WISHLIST_SETTINGS,
+  clampSettingsToPlan,
+} from "../models/wishlist-settings.server";
+import { getCurrentPlan }      from "../models/subscription.server";
 
 const tabList = [
   { id: "launching",  label: "Launching Point" },
@@ -98,47 +102,28 @@ export async function loader({ request }) {
   const data = await response.json();
   const raw  = data?.data?.shop?.metafield?.value;
 
-  let settings = {
-    launching_point:   "both",
-    position:          "bottom_right",
-    vertical_position: "lowest",
-    bg_color:          "#000000",
-    icon_color:        "#ffffff",
-    icon_radius:       "circle",
-    product_btn_style: "style1",
-    before_btn_label:  "Add to Wishlist",
-    before_bg_color:   "#000000",
-    before_icon_color: "#ffffff",
-    after_btn_label:   "Added to Wishlist",
-    after_bg_color:    "#228B22",
-    after_icon_color:  "#000000",
-    // Collection Page
-    collection_position:  "top_right",
-    collection_icon_type: "heart",
-    collection_custom_selector: "",
-    // Wishlist Page
-    wishlist_content_type: "separate_page",
-    wishlist_page_title:   "My Wishlists",    
-    // notification
-    notification_postion:"top_left",
-    notification_duration:"1",
-    notification_show: true,
-    // General Settings
-    guest_wishlist:    false,
-    show_vendor:       false,
-    remove_after_cart: false,
-    stay_on_page:      false,
-    show_add_to_cart:  true,
-    show_sold_out:     true,
-    allow_quantity:    true,
-    allow_variant:     true,    
-  };
+  let settings = { ...DEFAULT_WISHLIST_SETTINGS };
 
   if (raw) {
     try { settings = { ...settings, ...JSON.parse(raw) }; } catch {}
   }
 
-  return new Response(JSON.stringify({ settings }), {
+  const plan = await getCurrentPlan(admin);
+  settings   = clampSettingsToPlan(settings, plan.features);
+
+  // Note: plan.features.maxItems can be Infinity (Pro plan), which JSON
+  // can't represent — leave it out here, it's only needed server-side.
+  return new Response(JSON.stringify({
+    settings,
+    plan: {
+      id:                 plan.id,
+      name:               plan.name,
+      guestWishlist:      plan.features.guestWishlist,
+      drawer:             plan.features.drawer,
+      analytics:          plan.features.analytics,
+      toastNotifications: plan.features.toastNotifications,
+    },
+  }), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
 }
@@ -180,10 +165,17 @@ export async function action({ request }) {
     remove_after_cart: body.remove_after_cart ?? false,
     stay_on_page:      body.stay_on_page      ?? false,
     show_add_to_cart:  body.show_add_to_cart  ?? true,
-    show_sold_out:     body.show_sold_out     ?? true,
-    allow_quantity:    body.allow_quantity    ?? true,
-    allow_variant:     body.allow_variant     ?? true,
+    show_sold_out:     body.show_sold_out     ?? false,
+    allow_quantity:    body.allow_quantity    ?? false,
+    allow_variant:     body.allow_variant     ?? false,
+    // Wishlist Share
+    enable_share:      body.enable_share      ?? true,
   };
+
+  // Re-check the plan on save too — never trust the client to have honestly
+  // disabled something it wasn't allowed to turn on.
+  const plan        = await getCurrentPlan(admin);
+  const clampedPayload = clampSettingsToPlan(payload, plan.features);
 
   const shopRes  = await admin.graphql(`query { shop { id } }`);
   const shopData = await shopRes.json();
@@ -203,7 +195,7 @@ export async function action({ request }) {
         namespace: METAFIELD_NAMESPACE,
         key:       METAFIELD_KEY,
         type:      "json",
-        value:     JSON.stringify(payload),
+        value:     JSON.stringify(clampedPayload),
       }],
     },
   });
@@ -217,14 +209,14 @@ export async function action({ request }) {
     });
   }
 
-  return new Response(JSON.stringify({ ok: true, settings: payload }), {
+  return new Response(JSON.stringify({ ok: true, settings: clampedPayload }), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function WishlistSettingsPage() {
-  const { settings } = useLoaderData();
+  const { settings, plan } = useLoaderData();
 
   const fetcher      = useFetcher();
 
@@ -270,14 +262,15 @@ export default function WishlistSettingsPage() {
   // General Settings state
   const [generalModalOpen,   setGeneralModalOpen]   = useState(false);
   const [generalTab,         setGeneralTab]         = useState(0); // 0=General, 1=Wishlist page
+  const [wishlistShare,      setWishlistShare]      = useState(settings.enable_share        ?? true);
   const [guestWishlist,      setGuestWishlist]      = useState(settings.guest_wishlist      ?? false);
   const [showVendor,         setShowVendor]         = useState(settings.show_vendor         ?? false);
   const [removeAfterCart,    setRemoveAfterCart]    = useState(settings.remove_after_cart   ?? false);
   const [stayOnPage,         setStayOnPage]         = useState(settings.stay_on_page        ?? false);
   const [showAddToCart,      setShowAddToCart]      = useState(settings.show_add_to_cart    ?? true);
-  const [showSoldOut,        setShowSoldOut]        = useState(settings.show_sold_out        ?? true);
-  const [allowQuantity,      setAllowQuantity]      = useState(settings.allow_quantity       ?? true);
-  const [allowVariant,       setAllowVariant]       = useState(settings.allow_variant        ?? true);
+  const [showSoldOut,        setShowSoldOut]        = useState(settings.show_sold_out        ?? false);
+  const [allowQuantity,      setAllowQuantity]      = useState(settings.allow_quantity       ?? false);
+  const [allowVariant,       setAllowVariant]       = useState(settings.allow_variant        ?? false);
 
   const saving      = fetcher.state === "submitting";
   const saveSuccess = fetcher.state === "idle" && fetcher.data?.ok === true;
@@ -321,15 +314,18 @@ export default function WishlistSettingsPage() {
 
   const isDirtyGeneral = (() => {
    const saved = fetcher.data?.settings ?? settings;
+    return (
     guestWishlist   !== (saved.guest_wishlist    ?? false) ||
     showVendor      !== (saved.show_vendor       ?? false) ||
     removeAfterCart !== (saved.remove_after_cart ?? false) ||
     stayOnPage      !== (saved.stay_on_page      ?? false) ||
     showAddToCart   !== (saved.show_add_to_cart  ?? true)  ||
-    showSoldOut     !== (saved.show_sold_out     ?? true)  ||
-    allowQuantity   !== (saved.allow_quantity    ?? true)  ||
-    allowVariant    !== (saved.allow_variant     ?? true)
-   })();
+    showSoldOut     !== (saved.show_sold_out     ?? false)  ||
+    allowQuantity   !== (saved.allow_quantity    ?? false)  ||
+    allowVariant    !== (saved.allow_variant     ?? false)  ||
+    wishlistShare   !== (saved.enable_share      ?? true)
+    );
+  })();
 
   useEffect(() => {
     if (saveSuccess) {
@@ -372,9 +368,10 @@ export default function WishlistSettingsPage() {
     setRemoveAfterCart(saved.remove_after_cart ?? false);
     setStayOnPage(saved.stay_on_page         ?? false);
     setShowAddToCart(saved.show_add_to_cart  ?? true);
-    setShowSoldOut(saved.show_sold_out       ?? true);
-    setAllowQuantity(saved.allow_quantity    ?? true);
-    setAllowVariant(saved.allow_variant      ?? true);    
+    setShowSoldOut(saved.show_sold_out       ?? false);
+    setAllowQuantity(saved.allow_quantity    ?? false);
+    setAllowVariant(saved.allow_variant      ?? false);
+    setWishlistShare(saved.enable_share      ?? true);
   };
 
   const handleSave = () => {
@@ -412,7 +409,8 @@ export default function WishlistSettingsPage() {
         show_add_to_cart:  showAddToCart,
         show_sold_out:     showSoldOut,
         allow_quantity:    allowQuantity,
-        allow_variant:     allowVariant,         
+        allow_variant:     allowVariant,
+        enable_share:      wishlistShare,
       },
       { method: "POST", action: "/app/wishlist-settings", encType: "application/json" }
     );
@@ -453,7 +451,6 @@ export default function WishlistSettingsPage() {
             </BlockStack>
           </Card>
         </div>
-
         <div onClick={() => setNotifModalOpen(true)} style={{ cursor: "pointer" }}>
         <Card>
           <BlockStack gap="400">
@@ -466,7 +463,7 @@ export default function WishlistSettingsPage() {
             </BlockStack>
           </BlockStack>
         </Card> 
-        </div>       
+        </div>
       </InlineGrid>
 
       {widgetModalOpen && (
@@ -526,7 +523,7 @@ export default function WishlistSettingsPage() {
                 fontSize: 14, boxShadow: "rgba(0,0,0,0.2) 0px 8px 16px",
                 borderBottom: "1px solid #E4E4E4",
                 borderRadius:'5px',
-                marginBottom:'15px'
+                marginBottom:15
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, lineHeight:'normal' }}>
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="#000">
@@ -543,12 +540,12 @@ export default function WishlistSettingsPage() {
               </div>
             )}
               {showBanner && (
-                <div style={{ display:'none', marginBottom: 16 }}>
+                <div style={{ display:'none', marginBottom: 15 }}>
                   <Banner tone="success">Settings saved successfully!</Banner>
                 </div>
               )}
               {saveError && (
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 15 }}>
                   <Banner tone="critical">{saveError}</Banner>
                 </div>
               )}
@@ -651,7 +648,7 @@ export default function WishlistSettingsPage() {
                             ? `translateY(calc(-50% - ${verticalOffset}px))`
                             : "none",
                           width: 36, height: 36,
-                          borderRadius: iconRadius === "circle" ? "50%" : iconRadius === "rounded" ? 8 : 4,
+                          borderRadius: iconRadius === "circle" ? "50%" : iconRadius === "rounded" ? 8 : 0,
                           background: bgColor, display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
                           <svg viewBox="0 0 20 20" width="20" height="20" fill={textIconColor}>
@@ -768,10 +765,22 @@ export default function WishlistSettingsPage() {
                         <Text variant="bodyMd" fontWeight="bold">Appearance</Text>
                         <Text variant="bodyMd" fontWeight="bold">Button Type</Text>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <RadioButton label="Side Drawer" checked={wishlistContentType === "side_drawer"} id="wl_drawer" name="wishlistType" onChange={() => setWishlistContentType("side_drawer")} />
+                        <RadioButton
+                          label={plan.drawer ? "Side Drawer" : "Side Drawer 🔒 (Starter plan+)"}
+                          checked={wishlistContentType === "side_drawer"}
+                          disabled={!plan.drawer}
+                          id="wl_drawer" name="wishlistType"
+                          onChange={() => setWishlistContentType("side_drawer")}
+                        />
                         <RadioButton label="Separate Page"   checked={wishlistContentType === "separate_page"}   id="wl_page"   name="wishlistType" onChange={() => setWishlistContentType("separate_page")} />
                         <RadioButton label="Pop-up"  checked={wishlistContentType === "pop-up"}  id="wl_popup"  name="wishlistType" onChange={() => setWishlistContentType("pop-up")} />
                         </div>
+                        {!plan.drawer && (
+                          <Text variant="bodySm" tone="subdued">
+                            Side Drawer display is available on the Starter and Pro plans. &nbsp;
+                            <s-link tone="critical" href="/app/pricing">Upgrade →</s-link>
+                          </Text>
+                        )}
                       </BlockStack>
 
                     <BlockStack gap="200">
@@ -903,9 +912,9 @@ export default function WishlistSettingsPage() {
                     <BlockStack gap="400">
 
                       <TextField
-                        label="Wishlist Icon Selector (required)"
-                        helpText="Adding your product card CSS selector is required, otherwise the wishlist icon will not appear on product cards"
-                        placeholder=".product-card, .grid__item, .card-wrapper ..."
+                        label="Wishlist Icon Selector (optional, advanced)"
+                        helpText="The icon is placed on product cards automatically — you don't need to fill this in. Only set a CSS selector here if the icon appears in the wrong spot on your theme and you want to target the card manually."
+                        placeholder="Leave blank for automatic detection (recommended)"
                         value={collectionCustomSelector}
                         onChange={setCollectionCustomSelector}
                         autoComplete="off"
@@ -1049,7 +1058,7 @@ export default function WishlistSettingsPage() {
           }}>
 
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid rgba(0,0,0,0.08)", background: "#fff" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid #E4E4E4", background: "#fff" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 6, background: "#def40a", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30" fill="none">
@@ -1059,7 +1068,7 @@ export default function WishlistSettingsPage() {
                     <path d="M10.7764 7.27519L12.5449 8.52812L14.3418 10.7723L14.3828 10.823L14.4385 10.7889L14.8135 10.5643L14.8223 10.5594L14.8291 10.5525L17.8818 7.42461H20.3682L23.1035 10.16L23.6211 14.2273L22.1465 16.0701L19.751 18.1687L19.7998 18.2254L19.75 18.1678L19.7412 18.1775L18.1709 20.1219L16.2295 21.616L16.2217 21.6219L16.2158 21.6287L14.6914 23.5877L12.6523 21.6209L7.10352 16.0721L7.10156 16.0711L5.3252 14.368V10.7557L8.80566 7.27519H10.7764Z" fill="black" stroke="black" strokeWidth="0.15"/>
                   </svg>
                 </div>
-                <Text variant="headingMd" as="h2">Wishlist Configuration</Text>
+                <Text variant="headingMd" as="h2">Customize Notification</Text>
               </div>
               <button onClick={() => setNotifModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: "#666" }}>
                 <Icon source={XIcon} />
@@ -1072,7 +1081,8 @@ export default function WishlistSettingsPage() {
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "10px 24px", background: "#fff", color: "#000",
                 fontSize: 14, boxShadow: "rgba(0,0,0,0.2) 0px 8px 16px",
-                borderBottom: "1px solid rgba(0,0,0,0.08)",
+                borderBottom: "1px solid #E4E4E4",
+                marginBottom:15
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="#000">
@@ -1088,9 +1098,19 @@ export default function WishlistSettingsPage() {
                 </div>
               </div>
             )}
+            {showBanner && (
+              <div style={{ display:'none', marginBottom: 15 }}>
+                <Banner tone="success">Settings saved successfully!</Banner>
+              </div>
+            )}
+            {saveError && (
+              <div style={{ marginBottom: 15 }}>
+                <Banner tone="critical">{saveError}</Banner>
+              </div>
+            )}
 
             {/* Single Tab */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 10, padding: "20px 24px 10px" }}>
+            <div style={{ display: "none", justifyContent: "center", gap: 10, padding: "20px 24px 10px" }}>
               <button style={{
                 padding: "10px 22px", borderRadius: 8, fontSize: 14,
                 border: "none", background: "#f7ffa9", color: "#000", fontWeight: 600, cursor: "default",
@@ -1100,7 +1120,7 @@ export default function WishlistSettingsPage() {
             </div>
 
             {/* Content */}
-            <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+            <div style={{ flex: 1, padding: 24, overflowY: "auto", scrollbarWidth:'none' }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 24 }}>
 
                 {/* Left: Form */}
@@ -1109,24 +1129,34 @@ export default function WishlistSettingsPage() {
 
                     {/* Wishlist Notification Popup toggle */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text variant="bodyMd" fontWeight="bold">Wishlist Notification Popup</Text>
+                      <Text variant="bodyMd" fontWeight="bold">
+                        Wishlist Notification Popup{!plan.toastNotifications && " 🔒"}
+                      </Text>
                       <div
-                        onClick={() => setNotifEnabled(v => !v)}
+                        onClick={() => plan.toastNotifications && setNotifEnabled(v => !v)}
                         style={{
-                          width: 44, height: 24, borderRadius: 12, cursor: "pointer",
-                          background: notifEnabled ? "#def509" : "#d1d5db",
+                          width: 44, height: 24, borderRadius: 12,
+                          cursor: plan.toastNotifications ? "pointer" : "not-allowed",
+                          background: notifEnabled && plan.toastNotifications ? "#DEF509" : "#d1d5db",
                           position: "relative", transition: "background 0.2s", flexShrink: 0,
+                          opacity: plan.toastNotifications ? 1 : 0.6,
                         }}
                       >
                         <div style={{
                           position: "absolute", top: 2,
-                          left: notifEnabled ? 22 : 2,
+                          left: notifEnabled && plan.toastNotifications ? 22 : 2,
                           width: 20, height: 20, borderRadius: "50%",
                           background: "#fff", transition: "left 0.2s",
                           boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
                         }} />
                       </div>
                     </div>
+                    {!plan.toastNotifications && (
+                      <Text variant="bodySm" tone="subdued">
+                        Toast notifications are available on the Starter and Pro plans. &nbsp;
+                        <s-link tone="critical" href="/app/pricing">Upgrade →</s-link>
+                      </Text>
+                    )}
 
                     {/* Location dropdown */}
                     <Select
@@ -1288,11 +1318,13 @@ export default function WishlistSettingsPage() {
             position: "relative", width: "90%", margin: "32px 24px", borderRadius: 12,
             background: "linear-gradient(135deg, #e8f0fe 0%, #dce8fb 40%, #e4eef9 70%, #eaf1fd 100%)",
             display: "flex", flexDirection: "column", overflow: "hidden",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",  
+            background: "url('/images/model_bg.png') center center / cover no-repeat",
+            backgroundColor:"#fff",
           }}>
 
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid rgba(0,0,0,0.08)", background: "rgba(255,255,255,0.4)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid #E4E4E4", background: "#fff" }}>
               <InlineStack gap="300" align="center" blockAlign="center">
                 <div style={{ width: 28, height: 28, borderRadius: 6, background: "#def40a", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30" fill="none">
@@ -1307,13 +1339,33 @@ export default function WishlistSettingsPage() {
               <Button icon={XIcon} variant="plain" onClick={() => setGeneralModalOpen(false)} accessibilityLabel="Close" />
             </div>
 
+            <div style={{ display: "flex", alignItems: "stretch", flex: 1, minHeight: 0 }}>
+            {/* Tabs */}
+            <div style={{ display: "flex", background:'#fff', minWidth:'230px', height:"100%", justifyContent: "flex-start", flexDirection:'column', gap: 20, padding: "30px 20px 20px 20px" }}>
+              {["General", "Wishlist page", "Wishlist share"].map((label, idx) => (
+                <button key={idx} onClick={() => setGeneralTab(idx)} style={{
+                  padding: "10px 25px 10px 12px", textAlign:"left", borderRadius: 5, fontSize: 15, cursor: "pointer", transition: "all 0.15s ease",
+                  background: generalTab === idx ? "#F7FFA9" : "transparent",
+                  border: selectedTab === idx ? "none" : "none",
+                  color: generalTab === idx ? "#000" : "#000",
+                  fontWeight: generalTab === idx ? 600 : 400,
+                }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, padding: 24, overflowY: "auto", scrollbarWidth:'none' }}>
+
             {/* Unsaved bar */}
             {isDirtyGeneral && (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "10px 24px", background: "rgb(234, 239, 255)", color: "#000",
+                padding: "10px 24px", background: "#fff", color: "#000",
                 fontSize: 14, boxShadow: "rgba(0,0,0,0.2) 0px 8px 16px",
-                borderBottom: "1px solid rgba(0,0,0,0.08)",
+                borderBottom: "1px solid #E4E4E4",
+                marginBottom:15
               }}>
                 <InlineStack gap="200" align="center">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="#000">
@@ -1329,25 +1381,16 @@ export default function WishlistSettingsPage() {
                 </InlineStack>
               </div>
             )}
-
-            {/* Tabs */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 10, padding: "20px 24px 10px" }}>
-              {["General", "Wishlist page"].map((label, idx) => (
-                <button key={idx} onClick={() => setGeneralTab(idx)} style={{
-                  padding: "10px 28px", borderRadius: 8, fontSize: 14, cursor: "pointer", transition: "all 0.15s ease",
-                  border: generalTab === idx ? "none" : "1.5px solid #b0c4e8",
-                  background: generalTab === idx ? "#3b82f6" : "rgba(255,255,255,0.7)",
-                  color: generalTab === idx ? "#fff" : "#374151",
-                  fontWeight: generalTab === idx ? 600 : 400,
-                  display: idx == 1 ? 'none' : 'flex'
-                }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Content */}
-            <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
+              {showBanner && (
+                <div style={{ display:'none', marginBottom: 15 }}>
+                  <Banner tone="success">Settings saved successfully!</Banner>
+                </div>
+              )}
+              {saveError && (
+                <div style={{ marginBottom: 15 }}>
+                  <Banner tone="critical">{saveError}</Banner>
+                </div>
+              )}
 
               {/* ── General Tab ── */}
               {generalTab === 0 && (
@@ -1356,31 +1399,41 @@ export default function WishlistSettingsPage() {
                   {/* Guest Wishlist Card */}
                   <Card>
                     <BlockStack gap="400">
-                      <InlineStack align="space-between">
+                      <InlineStack align="space-between" blockAlign="center">
                         <InlineStack gap="200" align="center">
-                          <Text variant="bodyMd" fontWeight="bold">Guest Wishlist</Text>
+                          <Text variant="bodyMd" fontWeight="bold">
+                            Guest Wishlist{!plan.guestWishlist && " 🔒"}
+                          </Text>
                         </InlineStack>
                         <div
-                          onClick={() => setGuestWishlist(v => !v)}
+                          onClick={() => plan.guestWishlist && setGuestWishlist(v => !v)}
                           style={{
-                            width: 44, height: 24, borderRadius: 12, cursor: "pointer",
-                            background: guestWishlist ? "#22c55e" : "#d1d5db",
-                            position: "relative", transition: "background 0.2s", flexShrink: 0, opacity: 1,
+                            width: 44, height: 24, borderRadius: 12,
+                            cursor: plan.guestWishlist ? "pointer" : "not-allowed",
+                            background: guestWishlist && plan.guestWishlist ? "#DEF509" : "#d1d5db",
+                            position: "relative", transition: "background 0.2s", flexShrink: 0,
+                            opacity: plan.guestWishlist ? 1 : 0.6,
                           }}
                         >
                           <div style={{
-                            position: "absolute", top: 2, left: guestWishlist ? 22 : 2,
+                            position: "absolute", top: 2, left: guestWishlist && plan.guestWishlist ? 22 : 2,
                             width: 20, height: 20, borderRadius: "50%",
                             background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
                           }} />
                         </div>
                       </InlineStack>
                       <Text variant="bodyMd" tone="subdued">Allow visitors to add product into wishlist without login.</Text>
+                      {!plan.guestWishlist && (
+                        <Text variant="bodySm" tone="subdued">
+                          Available on the Starter and Pro plans. &nbsp;
+                          <s-link tone="critical" href="/app/pricing">Upgrade →</s-link>
+                        </Text>
+                      )}
                       {/* Preview image mock */}
                       <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#f9fafb" }}>
                         <div style={{ padding: 10 }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-                            {[1,2,3,4,5,6,7,8].map(i => (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                            {[1,2,3,4,5,6,7,8,9].map(i => (
                               <div key={i} style={{ background: "#e5e7eb", borderRadius: 6, padding: 6 }}>
                                 <div style={{ height: 100, background: "#d1d5db", borderRadius: 4, marginBottom: 4 }} />
                                 <div style={{ height: 6, background: "#d1d5db", borderRadius: 3, marginBottom: 3 }} />
@@ -1396,13 +1449,13 @@ export default function WishlistSettingsPage() {
                   {/* Show Vendor Card */}
                   <Card>
                     <BlockStack gap="400">
-                      <InlineStack align="space-between">
+                      <InlineStack align="space-between" blockAlign="center">
                         <Text variant="bodyMd" fontWeight="bold">Show Vendor</Text>
                         <div
                           onClick={() => setShowVendor(v => !v)}
                           style={{
                             width: 44, height: 24, borderRadius: 12, cursor: "pointer",
-                            background: showVendor ? "#22c55e" : "#d1d5db",
+                            background: showVendor ? "#DEF509" : "#d1d5db",
                             position: "relative", transition: "background 0.2s", flexShrink: 0,
                           }}
                         >
@@ -1417,12 +1470,12 @@ export default function WishlistSettingsPage() {
                       {/* Preview mock — wishlist popup style */}
                       <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#f9fafb", padding: 10 }}>
                         {/* <div style={{ height: 8, background: "#d1d5db", borderRadius: 3, width: "40%", marginBottom: 8 }} /> */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                          {[1,2,3,4,5,6].map(i => (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                          {[1,2,3,4,5,6,7,8,9].map(i => (
                             <div key={i} style={{ background: "#fff", borderRadius: 6, border: "1px solid #e5e7eb", overflow: "hidden" }}>
                               <div style={{ height: 80, background: "#e5e7eb" }} />
                               <div style={{ padding: 6 }}>
-                                {showVendor && <div style={{ height: 5, background: "#f87171", borderRadius: 2, width: "60%", marginBottom: 4 }} />}
+                                {showVendor && <div style={{ height: 5, background: "#F7FFA9", borderRadius: 2, width: "60%", marginBottom: 4 }} />}
                                 <div style={{ height: 6, background: "#d1d5db", borderRadius: 3, marginBottom: 3 }} />
                                 <div style={{ height: 6, background: "#d1d5db", borderRadius: 3, width: "50%", marginBottom: 6 }} />
                                 <div style={{ height: 18, background: "#111", borderRadius: 3 }} />
@@ -1442,7 +1495,6 @@ export default function WishlistSettingsPage() {
                 <Card>
                   <BlockStack gap="400">
                     <Text variant="headingMd" as="h3">Wishlist Page & Popup setting</Text>
-                    <Text variant="bodyMd" tone="subdued">Display the vendor's name on products in the wishlist page.</Text>
                     <BlockStack gap="300">
                       <Checkbox
                         label="Remove product from the wishlist after adding product to the cart"
@@ -1460,10 +1512,11 @@ export default function WishlistSettingsPage() {
                         onChange={setShowAddToCart}
                       />
                       <Checkbox
-                        label="Show a 'Sold Out' button on wishlisted products"
+                        label="Show a 'Sold Out' badge on wishlisted products"
                         checked={showSoldOut}
                         onChange={setShowSoldOut}
                       />
+                      <div style={{ display:"none" }}>
                       <Checkbox
                         label="Allow customers to directly adjust the quantity of products within their wishlist"
                         checked={allowQuantity}
@@ -1474,11 +1527,195 @@ export default function WishlistSettingsPage() {
                         checked={allowVariant}
                         onChange={setAllowVariant}
                       />
+                      </div>
                     </BlockStack>
                   </BlockStack>
                 </Card>
               )}
 
+              {/* ── Wishlist Share Tab ── */}
+              {generalTab === 2 && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 24 }}>
+
+                  {/* Left: controls */}
+                  <div style={{ background: "#fff", borderRadius: 10, padding: 20 }}>
+                    <BlockStack gap="400">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <BlockStack gap="100">
+                          <Text variant="bodyMd" fontWeight="bold">Wishlist Share</Text>
+                          <Text variant="bodySm" tone="subdued">
+                            Allow customers to share their wishlist via social media or a direct link.
+                          </Text>
+                        </BlockStack>
+                        <div
+                          onClick={() => setWishlistShare(v => !v)}
+                          style={{
+                            width: 44, height: 24, borderRadius: 12, cursor: "pointer",
+                            background: wishlistShare ? "#DEF509" : "#d1d5db",
+                            position: "relative", transition: "background 0.2s", flexShrink: 0,
+                          }}
+                        >
+                          <div style={{
+                            position: "absolute", top: 2,
+                            left: wishlistShare ? 22 : 2,
+                            width: 20, height: 20, borderRadius: "50%",
+                            background: "#fff", transition: "left 0.2s",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                          }} />
+                        </div>
+                      </InlineStack>
+
+                      {wishlistShare && (
+                        <BlockStack gap="200">
+                          <Text variant="bodySm" tone="subdued">
+                            A Share button will appear in the wishlist popup header. Customers can share
+                            via WhatsApp, Facebook, X, Email, Pinterest, or copy a direct link.
+                          </Text>
+                        </BlockStack>
+                      )}
+                    </BlockStack>
+                  </div>
+
+                  {/* Right: live preview */}
+                  <div style={{ background: "#fff", borderRadius: 10, padding: 16, overflow: "hidden", minHeight: 460 }}>
+                    <div style={{ borderBottom: "1px solid #D9D9D9", paddingBottom: 10, marginBottom: 14, fontWeight: 600, fontSize: 14 }}>Preview</div>
+
+                    {/* Fake wishlist popup header showing the Share button */}
+                    <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, overflow: "hidden", marginBottom: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #f0f0f0", background: "#fff" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#111" }}>My Wishlist</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {wishlistShare && (
+                            <div style={{
+                              display: "flex", alignItems: "center", gap: 5,
+                              padding: "5px 10px", border: "1px solid #ddd",
+                              borderRadius: 6, background: "#fff", fontSize: 11,
+                              color: "#333", cursor: "pointer",
+                            }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                              </svg>
+                              Share
+                            </div>
+                          )}
+                          <div style={{ width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#aaa" }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Fake wishlist items inside the popup */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: 10 }}>
+                        {[1, 2, 3].map(i => (
+                          <div key={i} style={{ border: "1px solid #eee", borderRadius: 8, overflow: "hidden" }}>
+                            <div style={{ height: 60, background: "#f0f0f0" }} />
+                            <div style={{ padding: "6px 6px 8px" }}>
+                              <div style={{ width: "85%", height: 5, background: "#ddd", borderRadius: 3, marginBottom: 4 }} />
+                              <div style={{ width: "55%", height: 5, background: "#ddd", borderRadius: 3, marginBottom: 5 }} />
+                              <div style={{ background: "#111", color: "#fff", fontSize: 8, textAlign: "center", padding: "3px 0", borderRadius: 3 }}>Add to Cart</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Share popup preview — only shown when enabled */}
+                    {wishlistShare ? (
+                      <div>
+                        <div style={{ fontSize: 11, color: "#888", marginBottom: 8 }}>
+                          Share popup (opens when customer clicks Share)
+                        </div>
+                        <div style={{
+                          border: "1px solid #e5e5e5", borderRadius: 12,
+                          overflow: "hidden", background: "#fff",
+                          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                        }}>
+                          {/* Share popup header */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#111" }}>Share your wishlist</span>
+                            <div style={{ color: "#aaa" }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                              </svg>
+                            </div>
+                          </div>
+
+                          <div style={{ padding: "14px 16px" }}>
+                            {/* Share via label */}
+                            <div style={{ fontSize: 10, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Share via</div>
+
+                            {/* Social icons */}
+                            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+                              {[
+                                { bg: "#25D366", label: "WhatsApp", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> },
+                                { bg: "#1877F2", label: "Facebook", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> },
+                                { bg: "#000",    label: "X",        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
+                                { bg: "#6366f1", label: "Email",    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+                                { bg: "#E60023", label: "Pinterest", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg> },
+                              ].map(({ bg, label, icon }) => (
+                                <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flex: 1 }}>
+                                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    {icon}
+                                  </div>
+                                  <span style={{ fontSize: 9, color: "#888" }}>{label}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Copy link label */}
+                            <div style={{ fontSize: 10, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Or copy link</div>
+
+                            {/* Copy row */}
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <div style={{
+                                flex: 1, background: "#f7f7f7", border: "1px solid #e8e8e8",
+                                borderRadius: 7, padding: "7px 10px", fontSize: 10, color: "#999",
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                              }}>
+                                https://store.myshopify.com/apps/wishlist?share=a3f9c2...
+                              </div>
+                              <div style={{
+                                flexShrink: 0, display: "flex", alignItems: "center", gap: 5,
+                                padding: "7px 12px", background: "#111", color: "#fff",
+                                borderRadius: 7, fontSize: 11, fontWeight: 500,
+                              }}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                                </svg>
+                                Copy
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Disabled state */
+                      <div style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                        padding: "30px 20px", border: "1px dashed #e0e0e0", borderRadius: 10,
+                        background: "#fafafa",
+                      }}>
+                        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                          </svg>
+                        </div>
+                        <div style={{ fontSize: 13, color: "#999", textAlign: "center" }}>
+                          Enable wishlist sharing to see the preview
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
             </div>
           </div>
         </div>

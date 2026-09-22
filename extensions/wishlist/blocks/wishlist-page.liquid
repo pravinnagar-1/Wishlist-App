@@ -9,6 +9,187 @@
 <script>
   window.wishlistCustomClass = {{ block.settings.custom_class | default: '' | json }};
 </script>
+<script>
+(function() {
+  // NOTE: these checks (including WishlistConfigApp.enabled) run inside
+  // init(), not at the top level here — app-configuration.liquid (which
+  // sets window.WishlistConfigApp) and this block are two independent
+  // inline scripts, and Shopify doesn't guarantee which app embed's script
+  // runs first. Checking `.enabled` immediately at parse time was a race:
+  // if this script happened to run first, the flag wasn't set yet, this
+  // whole block silently no-opped, and the server-rendered loading spinner
+  // from share.js was left spinning forever with nothing to replace it.
+  // Deferring the check into init() (called on DOMContentLoaded) guarantees
+  // every inline script in the page — app-configuration.liquid's included —
+  // has already run first.
+
+  // Wait for the main popup container to exist, then render shared view
+  function renderSharedWishlist(token) {
+    // Remove the server-rendered loading placeholder from share.js now that
+    // we're about to take over rendering this page ourselves.
+    document.getElementById('wishlist-share-page-marker')?.remove();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'shared-wishlist-wrapper';
+    wrapper.innerHTML = `
+      <div style="margin: 0 30px;">
+      <div style="text-align:center;padding:20px 0 10px;">
+        <h3 style="font-size:15px;color:#666;margin:0;">
+          You are viewing a shared wishlist
+        </h3>
+      </div>
+      <div class="shared-wishlist-items" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding:16px 0;"></div>
+      <div class="shared-wishlist-empty" style="display:none;text-align:center;padding:40px;color:#666;">
+        This wishlist is empty or the link has expired.
+      </div>
+      <div class="shared-wishlist-loading" style="text-align:center;padding:40px;color:#666;">
+        Loading shared wishlist...
+      </div>
+      </div>
+    `;
+
+    // Append after the main wishlist header if on the wishlist page
+    const main = document.querySelector('main') || document.body;
+    main.appendChild(wrapper);
+
+    const itemsGrid  = wrapper.querySelector('.shared-wishlist-items');
+    const emptyMsg   = wrapper.querySelector('.shared-wishlist-empty');
+    const loadingMsg = wrapper.querySelector('.shared-wishlist-loading');
+
+    // Fetch the shared items
+    fetch(
+      `/apps/wishlist/api/wishlist-shared-items?token=${token}`,
+      { cache: 'no-store' }
+    )
+    .then(r => r.json())
+    .then(async data => {
+      loadingMsg.style.display = 'none';
+
+      if (!data.items || data.items.length === 0) {
+        emptyMsg.style.display = 'block';
+        return;
+      }
+
+      // Fetch product details for each item
+      const products = await Promise.all(
+        data.items.map(async item => {
+          try {
+            const r = await fetch(`/products/${item.productHandle}.js`);
+            return { item, product: await r.json() };
+          } catch {
+            return { item, product: null };
+          }
+        })
+      );
+
+      const currency = window.Shopify?.currency?.active || 'USD';
+      const locale   = (window.Shopify?.locale || 'en').replace('_', '-');
+
+      products.forEach(({ product, item }) => {
+        if (!product) return;
+
+        const safeTitle = (product.title || '')
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const price = new Intl.NumberFormat(locale, {
+          style: 'currency', currency
+        }).format(product.price / 100);
+
+        const card = document.createElement('div');
+        card.className = 'shared-wishlist-item';
+        card.style.cssText = 'border:1px solid #e5e5e5;border-radius:10px;padding:12px;position:relative;';
+        card.innerHTML = `
+          <a href="${product.url}" style="text-decoration:none;display:block;">
+            <img
+              src="${product.featured_image}"
+              alt="${safeTitle}"
+              style="width:100%;border-radius:8px;margin-bottom:8px;"
+              loading="lazy"
+            >
+            <div style="font-size:13px;color:#000;font-weight:500;margin-bottom:4px;
+              overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
+              -webkit-line-clamp:2;-webkit-box-orient:vertical;">
+              ${safeTitle}
+            </div>
+            <div style="font-size:14px;font-weight:600;color:#000;margin-bottom:10px;">
+              ${price}
+            </div>
+          </a>
+          <button
+            data-variant-id="${item.variantId}"
+            class="shared-wishlist-add-cart"
+            style="width:100%;background:#111;color:#fff;border:none;border-radius:6px;
+              padding:10px;font-size:12px;cursor:pointer;"
+          >
+            Add to Cart
+          </button>
+        `;
+
+        // Add to cart handler
+        card.querySelector('.shared-wishlist-add-cart').addEventListener('click', async function() {
+          const btn = this;
+          btn.textContent = 'Adding...';
+          btn.setAttribute('disabled', 'true');
+
+          try {
+            await fetch('/cart/add.js', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({
+                items: [{ id: Number(item.variantId), quantity: 1 }]
+              }),
+            });
+            btn.textContent = 'Added!';
+            setTimeout(() => {
+              btn.textContent = 'Add to Cart';
+              btn.removeAttribute('disabled');
+            }, 2000);
+          } catch {
+            btn.textContent = 'Failed';
+            setTimeout(() => {
+              btn.textContent = 'Add to Cart';
+              btn.removeAttribute('disabled');
+            }, 2000);
+          }
+        });
+
+        itemsGrid.appendChild(card);
+      });
+
+    })
+    .catch(() => {
+      loadingMsg.style.display = 'none';
+      emptyMsg.style.display   = 'block';
+    });
+  }
+
+  function init() {
+    // Respect the master switch — if the "App Configuration" embed block is
+    // disabled, nothing from this app should render, shared links included.
+    if (!window.WishlistConfigApp?.enabled) return;
+
+    // The dedicated shared-wishlist page — https://{shop}/apps/wishlist/share?key=<token>
+    // (see app/routes/share.js). Only act on that exact path.
+    const isSharePage = /\/apps\/wishlist\/share\/?$/.test(window.location.pathname);
+    if (!isSharePage) return;
+
+    const url   = new URL(window.location.href);
+    const token = url.searchParams.get('key');
+    if (!token) return;
+
+    renderSharedWishlist(token);
+  }
+
+  // Run after DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
 
 {% schema %}
 {

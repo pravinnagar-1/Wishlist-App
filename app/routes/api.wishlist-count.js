@@ -1,23 +1,46 @@
-import prisma from "../db.server";
+// api.wishlist-count.js
+import { authenticate } from "../shopify.server";
+import prisma           from "../db.server";
+
+const CORS_HEADERS = {
+  "Content-Type":                "application/json",
+  "Cache-Control":               "no-store",
+  "Access-Control-Allow-Origin": "*",
+};
 
 export async function loader({ request }) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
 
-  const url = new URL(request.url);
+  try {
+    // Verify the request came through Shopify's app proxy before touching the DB.
+    await authenticate.public.appProxy(request);
 
-  const shop = url.searchParams.get("shop");
-  const customerId = url.searchParams.get("customerId");
+    const url        = new URL(request.url);
+    // Trust Shopify's own signed params, not a client-supplied customerId —
+    // otherwise anyone could read another customer's wishlist count.
+    const shop       = url.searchParams.get("shop");
+    const customerId = url.searchParams.get("logged_in_customer_id");
 
-  const count = await prisma.wishlist.count({
-    where: {
-      shop,
-      customerId
+    if (!shop || !customerId) {
+      return new Response(JSON.stringify({ count: 0 }), {
+        status: 200, headers: CORS_HEADERS,
+      });
     }
-  });
 
-  return new Response(JSON.stringify({ count }), {
-    headers: {
-      "Content-Type": "application/json"
-    }
-  });
+    const count = await prisma.wishlist.count({
+      where: { shop, customerId },
+    });
 
+    return new Response(JSON.stringify({ count }), {
+      status: 200, headers: CORS_HEADERS,
+    });
+
+  } catch (err) {
+    console.error("[wishlist-count]", err.message);
+    return new Response(JSON.stringify({ count: 0 }), {
+      status: 200, headers: CORS_HEADERS,
+    });
+  }
 }

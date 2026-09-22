@@ -19,6 +19,7 @@ export default function App() {
         <s-link href="/app/wishlist-items">Wishlist Items</s-link>
         <s-link href="/app/wishlist-users">Wishlist Users</s-link>
         <s-link href="/app/wishlist-settings">Settings</s-link>
+        <s-link href="/app/pricing">Pricing Plan</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

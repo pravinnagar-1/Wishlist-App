@@ -1,4 +1,275 @@
 {% comment %} extensions/blocks/collection-icon.liquid {% endcomment %}
+
+<script>
+  function collectionIconApp() {
+    if (!window.WishlistConfigApp?.enabled) return;
+
+    function getPositionStyle(position) {
+      const map = {
+        top_left:     'top:6px;left:6px;',
+        bottom_left:  'bottom:6px;left:6px;',
+        bottom_right: 'bottom:6px;right:6px;',
+      };
+      return map[position] || 'top:6px;right:6px;';
+    }
+
+    function getIconSVG(iconType) {
+      if (iconType === 'star') {
+        return `<svg xmlns="http://www.w3.org/2000/svg" class="collection-card-icon icon-star" viewBox="0 0 17 16" fill="none">
+          <path d="M8.0332 0.547852C8.05816 0.547852 8.07468 0.552209 8.08691 0.556641C8.08858 0.560085 8.0916 0.563954 8.09375 0.569336L8.09766 0.579102L10.0322 5.16016L10.1611 5.46484L10.4893 5.49316L15.4189 5.92383C15.4635 5.93248 15.4789 5.94159 15.4785 5.94141L15.4961 5.96094C15.5018 5.96879 15.5071 5.97937 15.5137 5.99219C15.5105 5.9975 15.5057 6.00792 15.4902 6.02051L15.4844 6.02539L15.4775 6.03125L11.7168 9.29102L11.4668 9.50879L11.542 9.83105L12.6797 14.6689L12.6846 14.6914L12.6904 14.708C12.6896 14.7091 12.6898 14.7105 12.6895 14.7109C12.6884 14.7122 12.6871 14.7137 12.6836 14.7158L12.6777 14.7188C12.6446 14.7394 12.6201 14.7462 12.6025 14.749C12.5958 14.7474 12.5832 14.7433 12.5635 14.7344L8.31641 12.1709L8.0332 12L7.75 12.1709L3.50488 14.7334C3.48434 14.7428 3.47164 14.7475 3.46484 14.749C3.44462 14.7453 3.41812 14.7374 3.38379 14.7168C3.38134 14.7152 3.37974 14.712 3.37598 14.7061H3.37695L3.38281 14.6875L3.3877 14.6689L4.52441 9.83105L4.60059 9.50879L4.34961 9.29102L0.588867 6.03125L0.583008 6.02539L0.576172 6.02051L0.552734 5.99414C0.56674 5.96659 0.579897 5.94945 0.59082 5.93848C0.59923 5.93469 0.617243 5.93003 0.647461 5.92383L5.57715 5.49316L5.90625 5.46484L6.03418 5.16016L7.96973 0.579102L7.97168 0.575195C7.9752 0.566644 7.97808 0.560075 7.98047 0.555664C7.99186 0.551448 8.00804 0.547868 8.0332 0.547852Z" stroke="black" stroke-width="1.09548"/>
+        </svg>`;
+      }
+      if (iconType === 'bookmark') {
+        return `<svg xmlns="http://www.w3.org/2000/svg" class="collection-card-icon icon-bookmark" viewBox="0 0 11 14" fill="none">
+          <path d="M1.45996 0.466797H9.37988C9.679 0.466797 9.90562 0.561866 10.0918 0.748047C10.2777 0.934028 10.3725 1.16015 10.3721 1.45898V13.291L5.60352 11.2432L5.41895 11.1641L5.23535 11.2432L0.466797 13.291V1.45996C0.466797 1.16004 0.562342 0.93335 0.748047 0.748047C0.911028 0.585564 1.10498 0.492744 1.35156 0.47168L1.45996 0.466797Z" stroke="black" stroke-width="0.933333"/>
+        </svg>`;
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" class="collection-card-icon icon-heart" viewBox="0 0 16 15" fill="none">
+        <path d="M0.499512 4.23438C0.489854 3.3889 0.771027 2.56562 1.29541 1.90234C1.81986 1.23905 2.55639 0.775459 3.38135 0.589844C4.20621 0.404323 5.06972 0.508118 5.82764 0.882812C6.58546 1.25749 7.19197 1.88049 7.54541 2.64844L7.99365 3.62305L8.45166 2.65332C8.7513 2.01974 9.22531 1.48462 9.81787 1.11035C10.4105 0.736079 11.0975 0.538353 11.7983 0.540039H11.7993C12.7806 0.540039 13.7226 0.930139 14.4165 1.62402C15.1101 2.31787 15.4995 3.25914 15.4995 4.24023C15.4994 5.19889 15.0589 6.28852 14.3296 7.41895C13.6061 8.54032 12.6327 9.65005 11.646 10.6367C10.6614 11.6213 9.67441 12.4717 8.93311 13.0771C8.56279 13.3796 8.25459 13.6208 8.03955 13.7852C8.02603 13.7955 8.01228 13.8047 7.99951 13.8145C7.98674 13.8047 7.97299 13.7955 7.95947 13.7852C7.74443 13.6208 7.43624 13.3796 7.06592 13.0771C6.32458 12.4717 5.33761 11.6213 4.35303 10.6367C3.36642 9.65011 2.39388 8.54025 1.67041 7.41895C0.941103 6.28852 0.499618 5.19889 0.499512 4.24023V4.23438Z" stroke="black"/>
+      </svg>`;
+    }
+
+    const productCache = {};
+    let collectionConfig = null;
+
+    // ── Theme-agnostic card detection ────────────────────────────────────────
+    // We can't rely on any particular CSS class name — every theme (Dawn,
+    // Debut, Impulse, a custom build, ...) markups its product grid
+    // differently. What NEVER changes is that a product card links to
+    // `/products/<handle>`. So instead of asking the merchant for a selector,
+    // walk up from each product link until we find the ancestor that repeats
+    // as a sibling (2+ elements with the same tag + class list) — that
+    // repeating element is the "card" in any grid, on any theme.
+    function findCardAncestor(link) {
+      let el = link;
+      for (let depth = 0; depth < 6 && el && el.parentElement; depth++) {
+        el = el.parentElement;
+        if (el.tagName === 'BODY' || el.tagName === 'MAIN') break;
+
+        const parent = el.parentElement;
+        if (!parent) break;
+
+        // Require at least one class — an unclassed wrapper <div>/<li> matching
+        // other unclassed wrappers is too weak a signal and tends to pick an
+        // ancestor way bigger than the actual card (e.g. the whole grid row).
+        if (el.classList.length === 0) continue;
+
+        const signature = el.tagName + '.' + Array.from(el.classList).sort().join('.');
+        const matchingSiblings = Array.from(parent.children).filter((sib) => {
+          return sib !== el &&
+            sib.tagName + '.' + Array.from(sib.classList).sort().join('.') === signature;
+        });
+
+        if (matchingSiblings.length >= 1) return el; // found a repeating grid item
+      }
+      // Fallback: nothing "repeated" (e.g. a single related-product link) —
+      // use the link's immediate parent so the icon still has somewhere to sit.
+      return link.parentElement || link;
+    }
+
+    function collectProductCards(scopeSelector) {
+      // Default scope is <main> (not the whole page) so header mini-cart
+      // links, cart-drawer line items, and footer content don't get icons —
+      // only collection grids, search results, related products, etc.
+      const defaultScope = document.querySelector('main') || document.body;
+      const scope = scopeSelector ? document.querySelectorAll(scopeSelector) : [defaultScope];
+      const cards = new Map(); // card element -> product link
+
+      scope.forEach((root) => {
+        root.querySelectorAll("a[href*='/products/']").forEach((link) => {
+          const card = scopeSelector ? root : findCardAncestor(link);
+          if (!cards.has(card)) cards.set(card, link);
+        });
+      });
+
+      return cards;
+    }
+
+    async function injectCollectionWishlist() {
+      if (!collectionConfig) return;
+
+      const { position, iconType, customSelector } = collectionConfig;
+
+      // If the merchant filled in a manual selector (advanced override, for
+      // the rare theme where auto-detection picks the wrong element), use it.
+      // Otherwise auto-detect — this is the default and works on any theme.
+      const cards = collectProductCards(customSelector || null);
+
+      cards.forEach((link, card) => {
+        if (card.querySelector('.wishlist-card-btn')) return;
+
+        const handle = link.href.split('/products/')[1]?.split('?')[0]?.split('/')[0];
+        if (!handle) return;
+
+        const btn = document.createElement('button');
+        btn.className    = 'wishlist-card-btn';
+        btn.innerHTML    = getIconSVG(iconType);
+        btn.setAttribute('aria-label', 'Add to wishlist');
+
+        const computedPosition = getComputedStyle(card).position;
+        if (computedPosition === 'static' || !computedPosition) {
+          card.style.position = 'relative';
+        }
+        btn.style.cssText = `position:absolute;${getPositionStyle(position)}z-index:21;visibility:hidden;`;
+
+        card.appendChild(btn);
+        attachCollectionLogic(btn, handle);
+      });
+    }
+
+    async function attachCollectionLogic(btn, handle) {
+    const customerId = window.wishlistCustomerId
+      ? String(window.wishlistCustomerId)
+      : String(window.ShopifyAnalytics?.meta?.page?.customerId || '');
+
+      if (!customerId) {
+        btn.dataset.customerId = '';
+        btn.dataset.added      = 'false';
+      }
+
+      try {
+        if (!productCache[handle]) {
+          const r = await fetch(`/products/${handle}.js`);
+          productCache[handle] = await r.json();
+        }
+      } catch {
+        btn.style.visibility = 'visible';
+        return;
+      }
+
+      const product       = productCache[handle];
+      const productId     = String(product.id);
+      const variantId     = String(product.variants[0].id);
+      const productHandle = handle;
+
+      btn.dataset.productId     = productId;
+      btn.dataset.variantId     = variantId;
+      btn.dataset.customerId    = customerId;
+      btn.dataset.productHandle = productHandle;
+      btn.setAttribute('aria-label', `Add ${product.title} to wishlist`);
+
+      window.checkWishlist?.(btn, productId, customerId);
+
+      btn.addEventListener('click', async () => {
+        if (!customerId) {
+          const isWishlistPage = /\/apps\/wishlist\/?$/.test(window.location.pathname);
+          if (collectionConfig?.wishlistType === 'separate_page' && !isWishlistPage) {
+            window.location.href = '/apps/wishlist';
+            return;
+          }
+          document.querySelector('.wishlisthero-popup-display-container')?.classList.add('show-wishlist');
+          return;
+        }
+
+        const added = btn.dataset.added === 'true';
+        btn.setAttribute('disabled', 'true');
+
+        try {
+          if (!added) {
+            const res = await fetch('/apps/wishlist/api/wishlist-add', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({
+                shop: Shopify.shop,
+                productId,
+                variantId,
+                customerId,
+                productHandle,
+              }),
+            });
+
+            const data = await res.json();
+
+            if (!data.success) {
+              // Plan limit reached (or some other server-side rejection).
+              // The `finally` below still re-enables the button.
+              alert(data.error || 'Could not add this item to your wishlist.');
+              return;
+            }
+
+            const productRes = await fetch(`/products/${data.data.productHandle}.js`);
+            const prod       = await productRes.json();
+
+            // showWishlistPopup is defined globally by wishlist.js (Section 11)
+            window.showWishlistPopup?.({
+              title: prod.title,
+              image: prod.featured_image,
+              url:   prod.url,
+            });
+
+            btn.classList.add('product-in-wishlist');
+            btn.dataset.added = 'true';
+          } else {
+            await fetch('/apps/wishlist/api/wishlist-remove', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ shop: Shopify.shop, productId, customerId }),
+            });
+            btn.classList.remove('product-in-wishlist');
+            btn.dataset.added = 'false';
+
+            try {
+              const prod = productCache[handle] || (await (await fetch(`/products/${handle}.js`)).json());
+              window.showWishlistPopup?.({
+                title: prod.title,
+                image: prod.featured_image,
+                url:   prod.url,
+              }, 'removed');
+            } catch { /* toast is a nice-to-have — don't block removal on it */ }
+          }
+
+          window.loadWishlistCount?.();
+          window.preloadWishlist?.();
+        } catch (err) {
+          console.error('[Wishlist] collection toggle:', err);
+        } finally {
+          btn.removeAttribute('disabled');
+        }
+      });
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    function init() {
+      // Use shared settings promise — no separate fetch
+      const sp = window.wishlistSettingsPromise
+        || fetch('/apps/wishlist/api/wishlist-settings').then(r => r.json()).catch(() => ({}));
+
+      sp.then((data) => {
+        collectionConfig = {
+          position:       data.collection_position        || 'top_right',
+          iconType:       data.collection_icon_type       || 'heart',
+          customSelector: data.collection_custom_selector || '',
+          wishlistType:   data.wishlist_content_type       || 'pop-up',
+        };
+        injectCollectionWishlist();
+      });
+
+      // MutationObserver — infinite scroll, filter changes, etc.
+      // Debounced: without this, every DOM change on every page (cart drawer
+      // opening, countdown timers, other apps' widgets, ...) re-triggers a
+      // full querySelectorAll scan, which is unnecessary storefront overhead.
+      let debounceTimer = null;
+      const observer = new MutationObserver(() => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(injectCollectionWishlist, 150);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', collectionIconApp);
+  } else {
+    collectionIconApp();
+  }
+</script>
+
 <style>
   .wishlist-card-btn {
     color: {{ block.settings.color }};
@@ -35,206 +306,6 @@
   .wishlist-card-btn.product-in-wishlist .collection-card-icon { fill: {{ block.settings.in_wishlist_color }}; }
   .wishlist-card-btn.product-in-wishlist .collection-card-icon path { stroke: {{ block.settings.in_wishlist_color }}; }
 </style>
-
-<script>
-  (function collectionIconApp() {
-    if (!window.WishlistConfigApp?.enabled) return;
-
-    const SELECTORS = [
-      '.card-wrapper',
-      '.grid__item',
-      '.grid-product',
-      '.product-item',
-      '.product__card',
-      '.product-card',
-      '.product_card',
-      '.collection-item',
-      '.productgrid--item',
-      '.product-grid-item',
-      '[data-product-handle]',
-      '[data-product-id]',
-      '.card',
-    ];
-
-    function autoDetectSelector(custom) {
-      if (custom && custom.trim() && document.querySelector(custom.trim())) {
-        return custom.trim();
-      }
-      for (const sel of SELECTORS) {
-        if (document.querySelector(sel)) return sel;
-      }
-      return null;
-    }
-
-    function getPositionStyle(position) {
-      const map = {
-        top_left:     'top:6px;left:6px;',
-        bottom_left:  'bottom:6px;left:6px;',
-        bottom_right: 'bottom:6px;right:6px;',
-      };
-      return map[position] || 'top:6px;right:6px;';
-    }
-
-    function getIconSVG(iconType) {
-      if (iconType === 'star') {
-        return `<svg xmlns="http://www.w3.org/2000/svg" class="collection-card-icon icon-star" viewBox="0 0 17 16" fill="none">
-          <path d="M8.0332 0.547852C8.05816 0.547852 8.07468 0.552209 8.08691 0.556641C8.08858 0.560085 8.0916 0.563954 8.09375 0.569336L8.09766 0.579102L10.0322 5.16016L10.1611 5.46484L10.4893 5.49316L15.4189 5.92383C15.4635 5.93248 15.4789 5.94159 15.4785 5.94141L15.4961 5.96094C15.5018 5.96879 15.5071 5.97937 15.5137 5.99219C15.5105 5.9975 15.5057 6.00792 15.4902 6.02051L15.4844 6.02539L15.4775 6.03125L11.7168 9.29102L11.4668 9.50879L11.542 9.83105L12.6797 14.6689L12.6846 14.6914L12.6904 14.708C12.6896 14.7091 12.6898 14.7105 12.6895 14.7109C12.6884 14.7122 12.6871 14.7137 12.6836 14.7158L12.6777 14.7188C12.6446 14.7394 12.6201 14.7462 12.6025 14.749C12.5958 14.7474 12.5832 14.7433 12.5635 14.7344L8.31641 12.1709L8.0332 12L7.75 12.1709L3.50488 14.7334C3.48434 14.7428 3.47164 14.7475 3.46484 14.749C3.44462 14.7453 3.41812 14.7374 3.38379 14.7168C3.38134 14.7152 3.37974 14.712 3.37598 14.7061H3.37695L3.38281 14.6875L3.3877 14.6689L4.52441 9.83105L4.60059 9.50879L4.34961 9.29102L0.588867 6.03125L0.583008 6.02539L0.576172 6.02051L0.552734 5.99414C0.56674 5.96659 0.579897 5.94945 0.59082 5.93848C0.59923 5.93469 0.617243 5.93003 0.647461 5.92383L5.57715 5.49316L5.90625 5.46484L6.03418 5.16016L7.96973 0.579102L7.97168 0.575195C7.9752 0.566644 7.97808 0.560075 7.98047 0.555664C7.99186 0.551448 8.00804 0.547868 8.0332 0.547852Z" stroke="black" stroke-width="1.09548"/>
-        </svg>`;
-      }
-      if (iconType === 'bookmark') {
-        return `<svg xmlns="http://www.w3.org/2000/svg" class="collection-card-icon icon-bookmark" viewBox="0 0 11 14" fill="none">
-          <path d="M1.45996 0.466797H9.37988C9.679 0.466797 9.90562 0.561866 10.0918 0.748047C10.2777 0.934028 10.3725 1.16015 10.3721 1.45898V13.291L5.60352 11.2432L5.41895 11.1641L5.23535 11.2432L0.466797 13.291V1.45996C0.466797 1.16004 0.562342 0.93335 0.748047 0.748047C0.911028 0.585564 1.10498 0.492744 1.35156 0.47168L1.45996 0.466797Z" stroke="black" stroke-width="0.933333"/>
-        </svg>`;
-      }
-      return `<svg xmlns="http://www.w3.org/2000/svg" class="collection-card-icon icon-heart" viewBox="0 0 16 15" fill="none">
-        <path d="M0.499512 4.23438C0.489854 3.3889 0.771027 2.56562 1.29541 1.90234C1.81986 1.23905 2.55639 0.775459 3.38135 0.589844C4.20621 0.404323 5.06972 0.508118 5.82764 0.882812C6.58546 1.25749 7.19197 1.88049 7.54541 2.64844L7.99365 3.62305L8.45166 2.65332C8.7513 2.01974 9.22531 1.48462 9.81787 1.11035C10.4105 0.736079 11.0975 0.538353 11.7983 0.540039H11.7993C12.7806 0.540039 13.7226 0.930139 14.4165 1.62402C15.1101 2.31787 15.4995 3.25914 15.4995 4.24023C15.4994 5.19889 15.0589 6.28852 14.3296 7.41895C13.6061 8.54032 12.6327 9.65005 11.646 10.6367C10.6614 11.6213 9.67441 12.4717 8.93311 13.0771C8.56279 13.3796 8.25459 13.6208 8.03955 13.7852C8.02603 13.7955 8.01228 13.8047 7.99951 13.8145C7.98674 13.8047 7.97299 13.7955 7.95947 13.7852C7.74443 13.6208 7.43624 13.3796 7.06592 13.0771C6.32458 12.4717 5.33761 11.6213 4.35303 10.6367C3.36642 9.65011 2.39388 8.54025 1.67041 7.41895C0.941103 6.28852 0.499618 5.19889 0.499512 4.24023V4.23438Z" stroke="black"/>
-      </svg>`;
-    }
-
-    const productCache = {};
-    let collectionConfig = null;
-
-    async function injectCollectionWishlist() {
-      if (!collectionConfig) return;
-
-      const { position, iconType, customSelector } = collectionConfig;
-      const selector = autoDetectSelector(customSelector);
-      if (!selector) return;
-
-      document.querySelectorAll(selector).forEach((card) => {
-        if (card.querySelector('.wishlist-card-btn')) return;
-
-        const link = card.querySelector("a[href*='/products/']");
-        if (!link) return;
-
-        const handle = link.href.split('/products/')[1]?.split('?')[0]?.split('/')[0];
-        if (!handle) return;
-
-        const btn = document.createElement('button');
-        btn.className    = 'wishlist-card-btn';
-        btn.innerHTML    = getIconSVG(iconType);
-        btn.setAttribute('aria-label', 'Add to wishlist');
-
-        card.style.position = 'relative';
-        btn.style.cssText   = `position:absolute;${getPositionStyle(position)}z-index:21;visibility:hidden;`;
-
-        card.appendChild(btn);
-        attachCollectionLogic(btn, handle);
-      });
-    }
-
-    async function attachCollectionLogic(btn, handle) {
-      const customerId = String(
-        window.ShopifyAnalytics?.meta?.page?.customerId || ''
-      );
-
-      try {
-        if (!productCache[handle]) {
-          const r = await fetch(`/products/${handle}.js`);
-          productCache[handle] = await r.json();
-        }
-      } catch {
-        btn.style.visibility = 'visible';
-        return;
-      }
-
-      const product       = productCache[handle];
-      const productId     = String(product.id);
-      const variantId     = String(product.variants[0].id);
-      const productHandle = handle;
-
-      btn.dataset.productId     = productId;
-      btn.dataset.variantId     = variantId;
-      btn.dataset.customerId    = customerId;
-      btn.dataset.productHandle = productHandle;
-      btn.setAttribute('aria-label', `Add ${product.title} to wishlist`);
-
-      window.checkWishlist?.(btn, productId, customerId);
-
-      btn.addEventListener('click', async () => {
-        if (!customerId) {
-          document.querySelector('.wishlisthero-popup-display-container')?.classList.add('show-wishlist');
-          return;
-        }
-
-        const added = btn.dataset.added === 'true';
-        btn.setAttribute('disabled', 'true');
-
-        try {
-          if (!added) {
-            const res = await fetch('/apps/wishlist/api/wishlist-add', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({
-                shop: Shopify.shop,
-                productId,
-                variantId,
-                customerId,
-                productHandle,
-              }),
-            });
-
-            const data       = await res.json();
-            const productRes = await fetch(`/products/${data.data.productHandle}.js`);
-            const prod       = await productRes.json();
-
-            // showWishlistPopup is defined globally by wishlist.js (Section 11)
-            window.showWishlistPopup?.({
-              title: prod.title,
-              image: prod.featured_image,
-              url:   prod.url,
-            });
-
-            btn.classList.add('product-in-wishlist');
-            btn.dataset.added = 'true';
-          } else {
-            await fetch('/apps/wishlist/api/wishlist-remove', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({ shop: Shopify.shop, productId, customerId }),
-            });
-            btn.classList.remove('product-in-wishlist');
-            btn.dataset.added = 'false';
-          }
-
-          window.loadWishlistCount?.();
-          window.preloadWishlist?.();
-        } catch (err) {
-          console.error('[Wishlist] collection toggle:', err);
-        } finally {
-          btn.removeAttribute('disabled');
-        }
-      });
-    }
-
-    // ── Init ──────────────────────────────────────────────────────────────────
-
-    function init() {
-      // Use shared settings promise — no separate fetch
-      const sp = window.wishlistSettingsPromise
-        || fetch('/apps/wishlist/api/wishlist-settings').then(r => r.json()).catch(() => ({}));
-
-      sp.then((data) => {
-        collectionConfig = {
-          position:       data.collection_position        || 'top_right',
-          iconType:       data.collection_icon_type       || 'heart',
-          customSelector: data.collection_custom_selector || '',
-        };
-        injectCollectionWishlist();
-      });
-
-      // MutationObserver — infinite scroll, filter changes, etc.
-      const observer = new MutationObserver(() => injectCollectionWishlist());
-      observer.observe(document.body, { childList: true, subtree: true });
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
-  })();
-</script>
 
 {% schema %}
 {

@@ -1,82 +1,69 @@
 // api.wishlist-remove.js
+import { authenticate } from "../shopify.server";
+import prisma           from "../db.server";
 
-// import prisma from "../db.server";
-
-// export async function action({ request }) {
-
-//   const body = await request.json();
-
-//   const { shop, productId, customerId } = body;
-
-//   console.log("REMOVE API HIT:", body);
-
-//   await prisma.wishlist.deleteMany({
-//     where: {
-//       shop,
-//       productId,
-//       customerId
-//     }
-//   });
-
-//   console.log("DELETED COUNT:", deleted);
-
-//   return new Response(JSON.stringify({ success: true }), {
-//     headers: {
-//       "Content-Type": "application/json"
-//     }
-//   });
-
-// }
-
-import prisma from "../db.server";
+const CORS_HEADERS = {
+  "Content-Type":                "application/json",
+  "Cache-Control":               "no-store",
+  "Access-Control-Allow-Origin": "*",
+};
 
 export async function action({ request }) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
   try {
-    const body = await request.json();
+    // Same as wishlist-add: verify the request really came via Shopify's app proxy.
+    await authenticate.public.appProxy(request);
 
-    console.log("BODY:", body);
+    // Trust only the signed shop/customer identity from Shopify's proxy —
+    // not whatever the client put in the POST body.
+    const url        = new URL(request.url);
+    const shop       = url.searchParams.get("shop");
+    const customerId = url.searchParams.get("logged_in_customer_id");
 
-    const { shop, productId, customerId } = body;
-
-    if (!shop || !productId || !customerId) {
+    if (!shop || !customerId) {
       return new Response(JSON.stringify({
         success: false,
-        error: "Missing fields"
-      }), { status: 400 });
+        error: "You must be logged in to use the wishlist.",
+      }), { status: 401, headers: CORS_HEADERS });
+    }
+
+    const body = await request.json();
+    const { productId } = body;
+
+    if (!productId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Missing fields",
+      }), { status: 400, headers: CORS_HEADERS });
     }
 
     const deleted = await prisma.wishlist.deleteMany({
       where: {
-        shop: String(shop),
+        shop,
         productId: String(productId),
-        customerId: String(customerId)
-      }
+        customerId,
+      },
     });
-
-    console.log("DELETED:", deleted);
 
     return new Response(JSON.stringify({
       success: true,
-      deleted
-    }), {
-      headers: { "Content-Type": "application/json" }
-    });
+      deleted,
+    }), { headers: CORS_HEADERS });
 
   } catch (err) {
-    console.error("REMOVE ERROR:", err);
-
+    console.error("[wishlist-remove]", err.message);
     return new Response(JSON.stringify({
       success: false,
-      error: err.message
-    }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+      error: "Server error",
+    }), { status: 500, headers: CORS_HEADERS });
   }
 }
 
 export async function loader() {
   return new Response(JSON.stringify({ message: "OK" }), {
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json" },
   });
 }

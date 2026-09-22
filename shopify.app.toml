@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "65470f23610c27cfab5434e04fafa4da"
-name = "wishlist"
+name = "Hipkers Wishlist"
 application_url = "https://example.com"
 embedded = true
 
@@ -19,9 +19,16 @@ api_version = "2026-04"
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
 
+  # Mandatory GDPR compliance webhooks — required for every Shopify app
+  # (public or custom). Without these, `shopify app deploy` / App Store
+  # review will reject the app.
+  [[webhooks.subscriptions]]
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "/webhooks/compliance"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products, read_customers, write_customers, write_app_proxy, write_script_tags, read_script_tags, read_themes"
+scopes = "write_products, read_customers, write_customers, write_app_proxy, read_themes"
 
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]

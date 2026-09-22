@@ -1,13 +1,14 @@
 {% comment %} extensions/blocks/wishlist-button.liquid [product page] {% endcomment %}
 
 <script>
-  (function wishlistButtonInit() {
+  function wishlistButtonInit() {
     if (!window.WishlistConfigApp?.enabled) {
       document.querySelectorAll('.wishlist-btn').forEach(function(el) { el.remove(); });
       return;
     }
 
     function applySettings(data) {
+
       const displayMode  = data.product_btn_style  || 'style1';
       const beforeText   = data.before_btn_label   || 'Add to Wishlist';
       const afterText    = data.after_btn_label     || 'Added to Wishlist';
@@ -34,15 +35,20 @@
     }
 
     // Use shared settings promise — no separate fetch
-    const sp = window.wishlistSettingsPromise
-      || fetch('/apps/wishlist/api/wishlist-settings').then(function(r) { return r.json(); }).catch(function() { return {}; });
-
+    const sp = window.wishlistSettingsPromise || fetch('/apps/wishlist/api/wishlist-settings').then(function(r) { return r.json(); }).catch(function() { return {}; });
+      console.log("ddd", sp);
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() { sp.then(applySettings); });
     } else {
       sp.then(applySettings);
     }
-  })();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wishlistButtonInit);
+  } else {
+    wishlistButtonInit();
+  }
 </script>
 
 <button

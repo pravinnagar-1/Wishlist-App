@@ -1,4 +1,30 @@
 {% comment %} extensions/blocks/wishlist-header.liquid {% endcomment %}
+
+<script>
+  // This block must work on its own, even if the "Launch Point" block isn't
+  // added — it decides its own visibility from the same launching_point
+  // setting instead of depending on another block's script to do it.
+  function wishlistHeaderIconInit() {
+    if (!window.WishlistConfigApp?.enabled) return;
+
+    const headerIcon = document.querySelector('.header__icon--wishlist');
+    if (!headerIcon) return;
+
+    const sp = window.wishlistSettingsPromise
+      || fetch('/apps/wishlist/api/wishlist-settings').then(function(r) { return r.json(); }).catch(function() { return {}; });
+
+    sp.then(function(data) {
+      const point = data.launching_point || 'both';
+      headerIcon.style.display = (point === 'header' || point === 'both') ? 'flex' : 'none';
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wishlistHeaderIconInit);
+  } else {
+    wishlistHeaderIconInit();
+  }
+</script>
+
 <a
   href="#wishlist"
   id="wishlist-icon"

@@ -67,6 +67,9 @@
 .MuiDialogContentText-root {
   margin-bottom: 12px;
   min-width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: space-evenly;
 }
 
 /* ─── Wishlist items grid ──────────────────────────────────────────────────── */
@@ -134,10 +137,47 @@ button#closeWishlist,
   transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
   border-radius: 50%;
 }
+/* Guest / not-logged-in state: "Login Required" + one line of subtext.
+   (JS switches it from display:none to display:flex when needed.) */
 .wishlist-hero-list-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 20px;
+  text-align: center;
+}
+.wishlist-hero-list-header h3 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111;
+}
+.wishlist-hero-list-header p {
+  margin: 0;
+  font-size: 16px;
+  color: #777;
+}
+
+/* ─── Loading spinner ──────────────────────────────────────────────────────── */
+.wishlist-hero-list-loading {
+  font-size: 16px;
+  color: #666;
+}
+
+.wishlist-spinner {
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 10px;
+  border: 3px solid #e5e5e5;
+  border-top-color: #111;
+  border-radius: 50%;
+  display: block;
+  animation: wishlist-spin 0.8s linear infinite;
+}
+@keyframes wishlist-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ─── Popup container ─────────────────────────────────────────────────────── */
@@ -162,6 +202,26 @@ button#closeWishlist,
 .wishlisthero-popup-display-container.wishlist-pop-up { display: none !important; }
 .wishlisthero-popup-display-container.wishlist-pop-up.show-wishlist { display: flex !important; }
 
+/* Pop-up header: title + count badge (left), close × (right); Share / Add
+   all sit on their own row underneath (left-aligned), then a divider. */
+.wishlist-pop-up .popup-header { padding: 20px 24px 0; }
+.wishlist-pop-up .popup-header .popup-header-container {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.wishlist-pop-up .wishlist-page-title-row h2 {
+  font-size: 20px;
+  font-weight: 500;
+}
+.wishlist-pop-up .MuiDialogContent-dividers { padding: 0 24px 24px; }
+.wishlist-pop-up .wishlist-items {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding-top: 20px;
+}
+.wishlist-pop-up .wishlist-item { padding: 10px; border-radius: 8px; }
+.wishlist-pop-up .wishlist-hero-list-no-items-text-content { padding-top: 70px; }
+
 /* ─── side drawer type ─────────────────────────────────────────────────────── */
 .wishlist-side_drawer .wishlist-items { grid-template-columns: 1fr 1fr; }
 
@@ -171,17 +231,71 @@ button#closeWishlist,
   transition: visibility 0.4s ease-in-out;
 }
 .wishlist-side_drawer .wishlist-popup {
-  max-width: 500px;
-  margin: 20px 0;
-  max-height: calc(100% - 20px);
+  width: 100%;
+  max-width: 420px;
+  margin: 0;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
   transition: transform 0.4s ease-in-out;
   transform: translate(100%);
+}
+
+/* Drawer header: title + count badge (left), close × (right); the Share /
+   Add all buttons sit on their own row underneath, split 50/50. */
+.wishlist-side_drawer .popup-header { padding: 16px 16px 0; }
+.wishlist-side_drawer .popup-header .popup-header-container {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.wishlist-side_drawer .wishlist-page-title-row h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+/* Action row under the header (pop-up + side drawer). Drawer splits the
+   buttons 50/50; the pop-up keeps them auto-width, left-aligned. */
+.wishlist-header-actions {
+  display: flex;
+  gap: 10px;
+  padding: 14px 0 16px;
+  border-bottom: 1px solid #D8D8D8;
+}
+.wishlist-side_drawer .wishlist-header-actions > button {
+  flex: 1;
+  justify-content: center;
+}
+.wishlist-side_drawer .MuiDialogContent-dividers { padding: 0 16px 16px; }
+.wishlist-side_drawer .wishlist-items { padding-top: 16px; }
+.wishlist-side_drawer .wishlist-item { padding: 10px; border-radius: 8px; }
+
+/* Empty state: no title / count / action buttons — just the close ×, and
+   the centered message. */
+.wishlist-side_drawer:not(.wishlist-has-items) .wishlist-page-title-row,
+.wishlist-side_drawer:not(.wishlist-has-items) .wishlist-header-actions,
+.wishlist-pop-up:not(.wishlist-has-items) .wishlist-page-title-row,
+.wishlist-pop-up:not(.wishlist-has-items) .wishlist-header-actions {
+  display: none;
+}
+.wishlist-side_drawer:not(.wishlist-has-items) .popup-header .popup-header-container,
+.wishlist-pop-up:not(.wishlist-has-items) .popup-header .popup-header-container {
+  justify-content: flex-end;
+}
+.wishlist-side_drawer .wishlist-hero-list-no-items-text-content {
+  padding-top: 110px;
+}
+.wishlist-side_drawer .wishlist-hero-list-no-items-text-content a {
+  min-width: 70%;
+  text-align: center;
+  box-sizing: border-box;
 }
 .wishlisthero-popup-display-container.show-wishlist .wishlist_overlay { display: block !important; }
 .wishlist-side_drawer.show-wishlist .wishlist-popup { transform: translate(0%); }
 .wishlisthero-popup-display-container.wishlist-side_drawer.show-wishlist { visibility: visible !important; }
 
 /* ─── separate page type ───────────────────────────────────────────────────── */
+.wishlisthero-popup-display-container.wishlist-separate_page {
+  flex-direction: column;
+}
 .wishlisthero-popup-display-container.wishlist-separate_page .wishlist-popup {
   width: 100%;
   margin: 0;
@@ -198,9 +312,128 @@ button#closeWishlist,
   column-gap: 30px;
   row-gap: 20px;
 }
-.wishlisthero-popup-display-container.wishlist-separate_page .wishlist-popup .wishlist-hero-footer { display: none; }
-.wishlisthero-popup-display-container.wishlist-separate_page { padding: 2rem 3rem; }
+.wishlisthero-popup-display-container.wishlist-separate_page { padding: 2rem 4rem; }
 .wishlisthero-popup-display-container.wishlist-separate_page .wishlist-popup .popup-header { padding: 16px 24px 24px; }
+
+/* Empty state on the page: no header row at all — just "Back to home" and
+   the centered message. */
+.wishlist-separate_page:not(.wishlist-has-items) .popup-header { display: none; }
+
+/* Clean, borderless product cards on the separate page (unlike the popup/
+   drawer cards, which keep their bordered look). */
+.wishlisthero-popup-display-container.wishlist-separate_page .wishlist-item {
+  border: none;
+  padding: 0;
+}
+
+/* "Back to home" link, above the page header */
+.wishlist-back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #111;
+  text-decoration: none;
+  padding: 4px 0 0;
+}
+.wishlist-back-home:hover { text-decoration: underline; }
+
+/* Page header row — title + count badge on the left, actions on the right */
+.wishlist-page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wishlist-page-title-row h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+.wishlist-count-badge {
+  background: #f0f0f0;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 9px;
+  min-width: 18px;
+  text-align: center;
+}
+.wishlist-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wishlist-page-share-btn,
+.wishlist-page-add-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.wishlist-page-share-btn {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+.wishlist-page-share-btn:hover { background: #333; }
+.wishlist-page-add-all-btn {
+  background: #fff;
+  color: #111;
+  border-color: #d9d9d9;
+}
+.wishlist-page-add-all-btn:hover { background: #f7f7f7; }
+.wishlist-page-add-all-btn:disabled,
+.wishlist-page-share-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.wishlisthero-popup-display-container.wishlist-separate_page .popup-header-container {
+  flex-wrap: wrap;
+  row-gap: 12px;
+}
+
+/* Empty state */
+.wishlist-hero-list-no-items-text-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 20px;
+  text-align: center;
+}
+.wishlist-hero-list-no-items-text-content svg { width: 40px; height: 40px; }
+.wishlist-hero-list-no-items-text-content h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+}
+.wishlist-empty-subtext {
+  margin: 0;
+  font-size: 13px;
+  color: #767676;
+}
+.wishlist-hero-list-no-items-text-content a {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 11px 28px;
+  background: #111;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.wishlist-hero-list-no-items-text-content a:hover { background: #333; }
 
 /* ─── Footer ─────────────────────────────────────────────────────────────── */
 .wishlist-hero-footer {
@@ -292,13 +525,150 @@ button#closeWishlist,
     grid-template-columns: 1fr;
   }
   .wishlisthero-popup-display-container.wishlist-side_drawer .wishlist-popup {
-    width: calc(100% - 20px);
-    margin: 20px auto;
-    max-height: calc(100% - 20px);
+    width: 100%;
+    margin: 0;
+    max-height: 100%;
   }
   .wishlisthero-popup-display-container.wishlist-separate_page { padding: 1rem; }
+  .wishlist-pop-up .popup-header { padding: 16px 15px 0; }
+  .wishlist-pop-up .MuiDialogContent-dividers { padding: 0 15px 20px; }
   .wishlist-item        { padding: 10px; }
   .MuiDialogContent-dividers { padding: 0 15px; }
   .popup-header         { padding: 15px; }
   .wishlisthero-popup-display-container.wishlist-separate_page .wishlist-popup .popup-header { padding: 15px; }
 }
+
+
+/* ─── Share popup ─────────────────────────────────────────────────────────── */
+.wishlist-share-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+.wishlist-share-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+.wishlist-share-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 16px;
+  overflow: hidden;
+  transform: translateY(10px);
+  transition: transform 0.2s ease;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.wishlist-share-overlay.show .wishlist-share-modal {
+  transform: translateY(0);
+}
+.wishlist-share-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.wishlist-share-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+}
+.wishlist-share-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  color: #888;
+  border-radius: 6px;
+}
+.wishlist-share-close:hover { background: #f5f5f5; }
+.wishlist-share-modal-body { padding: 20px; }
+.wishlist-share-label {
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.wishlist-share-socials {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.wishlist-share-social-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex: 1;
+  padding: 0;
+  text-decoration: none;
+}
+.wishlist-share-social-btn:hover .wishlist-share-social-icon {
+  opacity: 0.85;
+}
+.wishlist-share-social-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease;
+}
+.wishlist-share-social-name {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+}
+.wishlist-share-copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.wishlist-share-url-box {
+  flex: 1;
+  background: #f7f7f7;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.wishlist-share-copy-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+.wishlist-share-copy-btn:hover  { background: #333; }
+.wishlist-share-copy-btn.copied { background: #22c55e; }
